@@ -22,7 +22,7 @@ func TestEven(t *testing.T) {
 
 }
 
-func FuzzEvent(f *testing.F) {
+func FuzzEven(f *testing.F) {
 	testinputs := []int{5, 0, 50}
 
 	for _, tc := range testinputs {
