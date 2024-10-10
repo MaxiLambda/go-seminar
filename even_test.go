@@ -36,3 +36,16 @@ func FuzzEven(f *testing.F) {
 		}
 	})
 }
+
+func FuzzEven2(f *testing.F) {
+	f.Add(0, "other")
+	f.Add(10, "hallo")
+
+	f.Fuzz(func(t *testing.T, in int, _ string) {
+		res := Even(in)
+		res2 := Even(in + 1)
+		if res == res2 {
+			t.Errorf("Fail: %d => %t, %d => %t", in, res, in+1, res2)
+		}
+	})
+}
