@@ -85,7 +85,7 @@ func (f *FuzzPlus) Fuzz(ff any) {
 		var originalArgs []reflect.Value
 		originalArgs = append(originalArgs, t)
 
-		// Rebuild complex parameters from the flattened basic types
+		// Rebuild struct parameters from the flattened basic types
 		startIndex := 1
 		for i := 1; i < originalFuncType.NumIn(); i++ {
 			argValue, offset := reconstructArgument(args[startIndex:], originalFuncType.In(i))

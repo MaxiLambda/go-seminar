@@ -81,3 +81,23 @@ func FuzzPlusPlusEven(f *testing.F) {
 	})
 }
 ```
+
+### Fuzzing with Structs - how does it work?
+
+Each Fuzz test has a test corpus. The corpus is filled with initial values supplied in a variadic vector.
+
+The FuzzPlus wrapper flattens all structs in the corpus. Nested structs are flattened as well.
+The flattened values are passed to the `testing.F.Add(...)` method.
+
+The wrapped `testing.F.Fuzz(func(t testing.T,...))` call is mapped to the `FuzzPlus.Fuzz(func(t testing.T,...))` function
+where the arguments are un-flattened back into structs.
+```
+origin  := [int, MyStruct{string, int}, OtherStruct{bool, NestedStruct{string}, bool}, int8] <= original
+//is flattend - depth first - into:
+flattend :=[int,  string, int,  bool,        string,        bool, int8]                      <= flattend
+//               { MyStruct  } {OtherStruct {NestedStruct }     }                            <= origin of values
+//flattend is added to corups: testing.F.Add(flattend)
+//testing.F.Fuzz(func(t testing.T, int, string, int, bool, string, bool, int8)) is un-folded
+//NOTE: param names are omitted
+//func(testing.T, int, MyStruct{string, int}, OtherStruct{bool, NestedStruct{string}, bool}, int8)
+```
