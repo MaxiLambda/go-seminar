@@ -23,10 +23,54 @@ The following basic types are natively supported by the go fuzzer:
 * uint32
 * uint64
 
-## Support for structs (exporting all Fields)
+## Libraries
 
-The [FuzzPlus.go](FuzzPlus.go) module enables us to fuzz over structs. 
-It only supports structs where all fields are exported.
+The library [go-fuzz-headers](https://github.com/AdaLogics/go-fuzz-headers/tree/main) offers methods to fuzz over 
+basic-types, structs, arrays and maps. The random data is created by obtaining a `[]byte` object from the `testing.F.Fuzz`
+function. The byte-array is used as a seed in a pseudo random generator (`math/rand.NewSource`). All the basic types 
+can be created from an array of bytes given some constraints like upper and lower bounds for array/string/map lengths.
+
+First the remaining bytes of the initial array are consumed to populate values, then values from the generator are used.
+This allows the deterministic creation of arbitrary amounts of data, based on the initial array of bytes.
+
+go-fuzz-headers enables the programmer to fuzz directly on complex function inputs and abstracts the initialization of
+random function arguments away. The downside is, that the code looks different from a regular fuzz-test.
+The following code is a snipped from a [blog-post](https://adalogics.com/blog/structure-aware-go-fuzzing-complex-types).
+```go
+package fuzzing
+
+import (
+        "testing"
+        fuzz "github.com/AdaLogics/go-fuzz-headers"
+)
+
+
+func Fuzz(f *testing.F) {
+	    //this test tests nothing
+	    //a new Struct is created a populated with random values
+	    //noting else happens
+        f.Fuzz(func(t *testing.T, data []byte) {
+                fuzzConsumer := fuzz.NewConsumer(data)
+                targetStruct := &Demostruct{}
+                err := fuzzConsumer.GenerateStruct(targetStruct)
+                if err != nil {
+                        return
+                }
+        })
+}
+
+```
+## *Experiment: can fuzzing over structs, arrays, maps, etc... be implemented in a way, resembling the regular syntax of go fuzz tests?*
+
+### Support for structs (exporting all exported Fields)
+
+
+
+The [FuzzPlus.go](FuzzPlus.o) module enables us to fuzz over structs. 
+A fuzz test using this mod.ule looks very similar to a regular fuzz test. The only difference is the line
+`ff := FuzzPlus{f}`
+
+*Caveat*: It only supports structs where all fields are exported.
  ```go
  // Works
  type goodStruct struct {
@@ -82,7 +126,7 @@ func FuzzPlusPlusEven(f *testing.F) {
 }
 ```
 
-### Fuzzing with Structs - how does it work?
+#### Fuzzing with Structs - how does it work?
 
 Each Fuzz test has a test corpus. The corpus is filled with initial values supplied in a variadic vector.
 
