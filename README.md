@@ -145,3 +145,91 @@ flattend :=[int,  string, int,  bool,        string,        bool, int8]         
 //NOTE: param names are omitted
 //func(testing.T, int, MyStruct{string, int}, OtherStruct{bool, NestedStruct{string}, bool}, int8)
 ```
+
+## native-fuzzing, custom-struct-fuzzing and fuzz-headers
+
+In the following the performance expressed through necessary time and quality of the fuzzing is compared.
+Time depends on the quality of the fuzzing, as a more refined fuzzer might need fewer attempts to find edge cases. But a higher
+throughput might still make the other fuzzer come out on top. The custom-struct-fuzzing and fuzz-headers tests are working with structs.
+
+The test-setup is the following:
+There are two functions `F1(x) = x^3+4*x^2-2` and `F2(x) = x^4-1`. The fuzz-tests fail if an `x1` and `x2` are found so that
+`F(x1) - F(x2) < 0.001`.
+
+There seems to be a lot of variance in the number of required test-runs. On average the native-go tests are the fastest and require the least number of attempts,
+followed by the custom-struct tests. In comparison, the fuzz-headers tests are rather slow and of poor quality. This is expected,
+because there is a lot of overhead required to parse random bytes to the desired data. Additionally, these tests can't be optimized
+by the guided fuzzing approach of the native-go fuzzer, because the usage of pseudo-randomness make deterministic results harder because small
+changes in the input can drastically change the output.
+
+```go
+// Run  67538: F1(-1.142857) and F2(1.285714) are similar
+// Run  74599: F1(-0.537500) and F2(0.000000) are similar
+// Run 158583: F1(-0.555556) and F2(0.500000) are similar
+// Run  84336: F1(0.875000) and F2(1.285714) are similar
+// Run   5088: F1(-0.555556) and F2(-0.500000) are similar
+// all less than 10s
+func FuzzNative(f *testing.F) {
+	var counter int64 = 0
+
+	f.Add(float64(0), float64(0))
+	f.Add(float64(0), float64(1))
+	f.Add(float64(-1), float64(0))
+
+	f.Fuzz(func(t *testing.T, x1 float64, x2 float64) {
+		runNumber := atomic.AddInt64(&counter, 1)
+		if Similar(Holder{x1, x2}) {
+			t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, x1, x2)
+		}
+	})
+}
+
+// Run 262686: F1(0.600000) and F2(-0.900000) are similar
+// Run 129831: F1(0.600000) and F2(-0.900000) are similar
+// Run 298141: F1(-0.666667) and F2(-0.833333) are similar
+// Run 231402: F1(-0.555556) and F2(0.500000) are similar
+// Run     91: F1(0.580000) and F2(0.857143) are similar
+// all less than 30s
+func FuzzMyStruct(f *testing.F) {
+	ff := FuzzPlus{f}
+
+	var counter int64 = 0
+
+	ff.Add(Holder{0, 0})
+	ff.Add(Holder{0, 1})
+	ff.Add(Holder{-1, 0})
+
+	ff.Fuzz(func(t *testing.T, h Holder) {
+		runNumber := atomic.AddInt64(&counter, 1)
+		if Similar(h) {
+			t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, h.X1, h.X2)
+		}
+	})
+}
+
+// Run  124021: F1(-0.537132) and F2(0.000000) are similar
+// Run  893755: F1(-0.537132) and F2(0.000000) are similar
+// Run  868032: F1(-0.537132) and F2(0.000000) are similar
+// Run 2107100: F1(-0.537132) and F2(0.000000) are similar => took more than 4 min
+// Run 3533776: F1(-0.537132) and F2(0.000000) are similar => took more than 6 min
+func FuzzFuzzHeaders(f *testing.F) {
+
+	var counter int64 = 0
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+
+		fuzzConsumer := fuzz.NewConsumer(data)
+		h := &Holder{}
+		err := fuzzConsumer.GenerateStruct(h)
+		if err != nil {
+			//return if an error constructing the struct happens
+			return
+		}
+		runNumber := atomic.AddInt64(&counter, 1)
+
+		if Similar(*h) {
+			t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, h.X1, h.X2)
+		}
+	})
+}
+```
