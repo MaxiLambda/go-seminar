@@ -34,8 +34,9 @@ First the remaining bytes of the initial array are consumed to populate values, 
 This allows the deterministic creation of arbitrary amounts of data, based on the initial array of bytes.
 
 go-fuzz-headers enables the programmer to fuzz directly on complex function inputs and abstracts the initialization of
-random function arguments away. The downside is, that the code looks different from a regular fuzz-test.
-The following code is a snipped from a [blog-post](https://adalogics.com/blog/structure-aware-go-fuzzing-complex-types).
+random function arguments away. The downside is, that the code looks different from a native fuzz-test and and more 
+importantly a significantly worse performance compared to native fuzz-tests.
+The following code is a snipped from a [blog-post](https://adalogics.com/blog/structure-aware-go-fuzzing-complex-types) slightly altered.
 ```go
 package fuzzing
 
@@ -56,18 +57,20 @@ func Fuzz(f *testing.F) {
                 if err != nil {
                         return
                 }
+				//TODO do things with targetStruct
+				// targetStruct.doThings()...
         })
 }
 
 ```
-## *Experiment: can fuzzing over structs, arrays, maps, etc... be implemented in a way, resembling the regular syntax of go fuzz tests?*
+## *Experiment: can fuzzing over structs, arrays, maps, etc... be implemented in a way, resembling the regular syntax and performance of go fuzz tests?*
 
 ### Support for structs (exporting all exported Fields)
 
 
 
-The [FuzzPlus.go](FuzzPlus.o) module enables us to fuzz over structs. 
-A fuzz test using this mod.ule looks very similar to a regular fuzz test. The only difference is the line
+The custom [FuzzPlus](FuzzPlus.go) module enables us to fuzz over structs. 
+A fuzz test using this module looks very similar to a regular fuzz test. The only difference is the line
 `ff := FuzzPlus{f}`
 
 *Caveat*: It only supports structs where all fields are exported.
@@ -81,6 +84,7 @@ A fuzz test using this mod.ule looks very similar to a regular fuzz test. The on
  // Nesting of structs is supported as well
  type goodNestedStruct struct {
     Nested goodStruct
+	Val int
  }
  
  // Does not work
@@ -92,7 +96,7 @@ A fuzz test using this mod.ule looks very similar to a regular fuzz test. The on
 
 `FuzzPlus` is a wrapper over `testing.F`.
 It enhances the `testing.F.Add` and the `testing.F.Fuzz` so they can handle structs.
-'FuzzPlus' can be used like this:
+`FuzzPlus` can be used like this:
 ```go
 type myStruct struct {
 	First  int
@@ -118,7 +122,7 @@ func FuzzPlusPlusEven(f *testing.F) {
 	ff.Fuzz(func(t *testing.T, in parent) {
 		//this test is nonsense but it shows how things work
 		res := Even(in.Child1.First)
-		res2 := Even(in.Child1.First + 1)
+		res2 := Even(in.Child2.First + 1)
 		if res == res2 {
 			t.Errorf("An Error, how sad")
 		}
@@ -146,7 +150,7 @@ flattend :=[int,  string, int,  bool,        string,        bool, int8]         
 //func(testing.T, int, MyStruct{string, int}, OtherStruct{bool, NestedStruct{string}, bool}, int8)
 ```
 
-## native-fuzzing, custom-struct-fuzzing and fuzz-headers
+## Comparing native-fuzzing, custom-struct-fuzzing and fuzz-headers
 
 In the following the performance expressed through necessary time and quality of the fuzzing is compared.
 Time depends on the quality of the fuzzing, as a more refined fuzzer might need fewer attempts to find edge cases. But a higher
@@ -156,11 +160,13 @@ The test-setup is the following:
 There are two functions `F1(x) = x^3+4*x^2-2` and `F2(x) = x^4-1`. The fuzz-tests fail if an `x1` and `x2` are found so that
 `F(x1) - F(x2) < 0.001`.
 
-There seems to be a lot of variance in the number of required test-runs. On average the native-go tests are the fastest and require the least number of attempts,
-followed by the custom-struct tests. In comparison, the fuzz-headers tests are rather slow and of poor quality. This is expected,
+There seems to be a lot of variance in the number of required test-runs. On average the native-go tests are the fastest (avg. 4.25) and require the least number of attempts,
+followed by the custom-struct tests (avg. 7.05) . In comparison, the fuzz-headers tests are rather slow and of poor quality (avg. 131.35s). This is expected,
 because there is a lot of overhead required to parse random bytes to the desired data. Additionally, these tests can't be optimized
 by the guided fuzzing approach of the native-go fuzzer, because the usage of pseudo-randomness make deterministic results harder because small
 changes in the input can drastically change the output.
+
+Avg. durations were calculated by running `go test go-seminar -fuzz ...` and measuring the time until an Error is thrown. The measurements therefore include setup times. 
 
 ```go
 // Run  67538: F1(-1.142857) and F2(1.285714) are similar
@@ -168,7 +174,6 @@ changes in the input can drastically change the output.
 // Run 158583: F1(-0.555556) and F2(0.500000) are similar
 // Run  84336: F1(0.875000) and F2(1.285714) are similar
 // Run   5088: F1(-0.555556) and F2(-0.500000) are similar
-// all less than 10s
 func FuzzNative(f *testing.F) {
 	var counter int64 = 0
 
@@ -189,7 +194,6 @@ func FuzzNative(f *testing.F) {
 // Run 298141: F1(-0.666667) and F2(-0.833333) are similar
 // Run 231402: F1(-0.555556) and F2(0.500000) are similar
 // Run     91: F1(0.580000) and F2(0.857143) are similar
-// all less than 30s
 func FuzzMyStruct(f *testing.F) {
 	ff := FuzzPlus{f}
 
@@ -210,8 +214,8 @@ func FuzzMyStruct(f *testing.F) {
 // Run  124021: F1(-0.537132) and F2(0.000000) are similar
 // Run  893755: F1(-0.537132) and F2(0.000000) are similar
 // Run  868032: F1(-0.537132) and F2(0.000000) are similar
-// Run 2107100: F1(-0.537132) and F2(0.000000) are similar => took more than 4 min
-// Run 3533776: F1(-0.537132) and F2(0.000000) are similar => took more than 6 min
+// Run 2107100: F1(-0.537132) and F2(0.000000) are similar
+// Run 3533776: F1(-0.537132) and F2(0.000000) are similar
 func FuzzFuzzHeaders(f *testing.F) {
 
 	var counter int64 = 0
