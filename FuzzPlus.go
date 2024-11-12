@@ -47,6 +47,14 @@ func flattenValue(v reflect.Value) []any {
 			fieldValue := v.Field(i)
 			result = append(result, flattenValue(fieldValue)...)
 		}
+	case reflect.Array, reflect.Slice:
+		// If the value is an array or slice, record the start position
+		for i := 0; i < v.Len(); i++ {
+			elementValues := flattenValue(v.Index(i))
+			result = append(result, elementValues...)
+		}
+		// Record the end position of the array
+
 	default:
 		// For basic types, just add the value directly
 		result = append(result, v.Interface())
@@ -89,12 +97,14 @@ func (f *FuzzPlus) Fuzz(ff any) {
 		if arr.Start > idx {
 			numToAdd := arr.End - arr.Start
 			if numToAdd > -1 {
+				//if the array is non empty, add as many copies of the type at it's index as the array is long
 				for i := 0; i < +1; i++ {
 					//arr.Start + 1 because *testing.T is always the first argument
 					flatParamTypes = injectElement(flatParamTypes, arr.Start+1, flatParamTypes[arr.Start+1], numToAdd)
 				}
 				idx = arr.End
 			} else {
+				//if the array is empty, remove its type
 				//arr.Start + 1 because *testing.T is always the first argument
 				flatParamTypes = removeElement(flatParamTypes, arr.Start+1)
 			}
@@ -115,11 +125,11 @@ func (f *FuzzPlus) Fuzz(ff any) {
 		originalArgs = append(originalArgs, t)
 
 		// Initialize currentIndex to track the position in the flattened args slice
-		currentIndex := 0 // Start after *testing.T parameter
+		currentIndex := 1 // Start after *testing.T parameter
 		arrayOffset := 0
 		// Iterate over each parameter in the original function's parameter list
 		for i := 1; i < originalFuncType.NumIn(); i++ {
-			argValue, offset, arr := reconstructArgument(args[1:], originalFuncType.In(i), arrs[arrayOffset:], &currentIndex)
+			argValue, offset, arr := reconstructArgument(args[currentIndex:], originalFuncType.In(i), arrs[arrayOffset:])
 			originalArgs = append(originalArgs, argValue)
 			currentIndex += offset
 			arrayOffset += arr
@@ -177,11 +187,7 @@ func flattenParamTypes(t reflect.Type) []reflect.Type {
 
 // reconstructArgument rebuilds a nested array or basic type from a flattened slice.
 // Uses `arrayPositions` to identify the shape of multi-dimensional arrays.
-func reconstructArgument(values []reflect.Value, t reflect.Type, arrayPositions []ArrayPosition, currentIndex *int) (reflect.Value, int, int) {
-	//TODO make this work
-	// first type is [][]int -> sort arrayPositions, so [0] is {0 3}
-	// next type is []int -> {0 1}
-	// next type is
+func reconstructArgument(values []reflect.Value, t reflect.Type, arrayPositions []ArrayPosition) (reflect.Value, int, int) {
 	//recursion on Slice does not respect currentIndex
 	switch t.Kind() {
 	case reflect.Slice:
@@ -192,10 +198,8 @@ func reconstructArgument(values []reflect.Value, t reflect.Type, arrayPositions 
 
 		arrayOffest := 1
 
-		//TODO dont increment by one in the loop, increment by the new offset
-		// current: {0 3}, leads to 4 iterations, but should only be two ({0 1} and {2 3})
 		for i := 0; i < arrayLen; {
-			elemValue, offset, arr := reconstructArgument(values, t.Elem(), arrayPositions[arrayOffest:], currentIndex)
+			elemValue, offset, arr := reconstructArgument(values[i:], t.Elem(), arrayPositions[arrayOffest:])
 			sliceVals = append(sliceVals, elemValue)
 			arrayOffest += arr
 			i += offset
@@ -211,13 +215,13 @@ func reconstructArgument(values []reflect.Value, t reflect.Type, arrayPositions 
 		structValue := reflect.New(t).Elem()
 		offset := 0
 		for i := 0; i < t.NumField(); i++ {
-			fieldValue, _, _ := reconstructArgument(values, t.Field(i).Type, arrayPositions, currentIndex)
+			fieldValue, consumed, _ := reconstructArgument(values[offset:], t.Field(i).Type, arrayPositions)
 			structValue.Field(i).Set(fieldValue)
+			offset += consumed
 		}
 		return structValue, offset, 0
 	default:
-		val := values[*currentIndex]
-		*currentIndex++
+		val := values[0]
 		return val, 1, 0
 	}
 }
