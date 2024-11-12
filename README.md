@@ -67,11 +67,9 @@ func Fuzz(f *testing.F) {
 
 ### Support for structs (exporting all exported Fields)
 
-
-
 The custom [FuzzPlus](FuzzPlus.go) module enables us to fuzz over structs. 
 A fuzz test using this module looks very similar to a regular fuzz test. The only difference is the line
-`ff := FuzzPlus{f}`
+`ff := NewFuzzPlus(f)`
 
 *Caveat*: It only supports structs where all fields are exported.
  ```go
@@ -110,7 +108,7 @@ type parent struct {
 
 func FuzzPlusPlusEven(f *testing.F) {
 
-	ff := FuzzPlus{f}
+	ff := NewFuzzPlus(f)
 
 	var data1 = myStruct{1, "hallo"}
 	var data2 = myStruct{2, "tschüss"}
@@ -195,7 +193,7 @@ func FuzzNative(f *testing.F) {
 // Run 231402: F1(-0.555556) and F2(0.500000) are similar
 // Run     91: F1(0.580000) and F2(0.857143) are similar
 func FuzzMyStruct(f *testing.F) {
-	ff := FuzzPlus{f}
+	ff := NewFuzzPlus(f)
 
 	var counter int64 = 0
 
@@ -237,3 +235,8 @@ func FuzzFuzzHeaders(f *testing.F) {
 	})
 }
 ```
+
+### Support for Arrays
+
+Idea each array in the corpus is replaced with an internal struct nTuple {N int, Kind Kind, Elements []Kind}. When re-constructing
+these nTuples can be replaced by arrays again. This approach should work for maps as well (using an Altered nTuple).

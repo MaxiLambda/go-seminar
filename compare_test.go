@@ -34,7 +34,7 @@ func FuzzNative(f *testing.F) {
 // Run     91: F1(0.580000) and F2(0.857143) are similar
 // all less than 30s
 func FuzzMyStruct(f *testing.F) {
-	ff := FuzzPlus{f}
+	ff := NewFuzzPlus(f)
 
 	var counter int64 = 0
 
