@@ -192,10 +192,13 @@ func reconstructArgument(values []reflect.Value, t reflect.Type, arrayPositions 
 
 		arrayOffest := 1
 
-		for i := 0; i < arrayLen; i++ {
-			elemValue, _, arr := reconstructArgument(values, t.Elem(), arrayPositions[1:], currentIndex)
+		//TODO dont increment by one in the loop, increment by the new offset
+		// current: {0 3}, leads to 4 iterations, but should only be two ({0 1} and {2 3})
+		for i := 0; i < arrayLen; {
+			elemValue, offset, arr := reconstructArgument(values, t.Elem(), arrayPositions[arrayOffest:], currentIndex)
 			sliceVals = append(sliceVals, elemValue)
 			arrayOffest += arr
+			i += offset
 		}
 
 		// Create and populate slice
