@@ -95,12 +95,15 @@ func (f *FuzzPlus) Fuzz(ff any) {
 	fmt.Println(arrs)
 	for _, arr := range arrs {
 		if arr.Start > idx {
-			numToAdd := arr.End - arr.Start
-			if numToAdd > -1 {
+			numToAdd := arr.End - arr.Start - arr.TypeLength + 1
+			if numToAdd > 0 {
 				//if the array is non empty, add as many copies of the type at it's index as the array is long
-				for i := 0; i < +1; i++ {
+				for i := 0; i < +1; {
 					//arr.Start + 1 because *testing.T is always the first argument
-					flatParamTypes = injectElement(flatParamTypes, arr.Start+1, flatParamTypes[arr.Start+1], numToAdd)
+
+					flatParamTypes = injectSlice(flatParamTypes, arr.Start+1, flatParamTypes[arr.Start+1:arr.Start+arr.TypeLength+1], numToAdd/arr.TypeLength)
+
+					i += arr.TypeLength * numToAdd
 				}
 				idx = arr.End
 			} else {
@@ -143,11 +146,12 @@ func (f *FuzzPlus) Fuzz(ff any) {
 	f.F.Fuzz(transformedFunc.Interface())
 }
 
-// injectElement injects the given value n times at the specified index
-func injectElement[T any](slice []T, index int, value T, n int) []T {
-	// Repeat inserting the value n times
+func injectSlice[T any](slice []T, index int, value []T, n int) []T {
 	for i := 0; i < n; i++ {
-		slice = append(slice[:index], append([]T{value}, slice[index:]...)...)
+		// Insert the value slice at the specified index
+		slice = append(slice[:index], append(value, slice[index:]...)...)
+		// Move the index forward by the length of value to avoid overlapping insertions
+		index += len(value)
 	}
 	return slice
 }
@@ -244,8 +248,9 @@ func sortArrayPositions(arr []ArrayPosition) []ArrayPosition {
 }
 
 type ArrayPosition struct {
-	Start int
-	End   int
+	Start      int
+	End        int
+	TypeLength int
 }
 
 // Add2 is similar to Add but adds metadata on array positions in the flattened arguments.
@@ -256,7 +261,7 @@ func (f *FuzzPlus) Add2(seed ...any) {
 
 	for _, item := range seed {
 		v := reflect.ValueOf(item)
-		flatVal, positions := flattenValue2(v, currentIndex)
+		flatVal, positions, _ := flattenValue2(v, currentIndex, false)
 		flattened = append(flattened, flatVal...)
 		arrayPositions = append(arrayPositions, positions...)
 		currentIndex += len(flatVal)
@@ -273,15 +278,17 @@ func (f *FuzzPlus) Add2(seed ...any) {
 
 // flattenValue2 processes a reflect.Value, flattening structs, arrays, and slices into a slice of any type.
 // It returns the flattened values and a list of ArrayPositions to indicate where arrays/slices start and end.
-func flattenValue2(v reflect.Value, startIndex int) ([]any, []ArrayPosition) {
+func flattenValue2(v reflect.Value, startIndex int, arrayNested bool) ([]any, []ArrayPosition, int) {
 	var result []any
 	var arrayPositions []ArrayPosition
+	typeSize := 0
 
 	switch v.Kind() {
 	case reflect.Struct:
 		// Recursively flatten struct fields
 		for i := 0; i < v.NumField(); i++ {
-			fieldValues, fieldPositions := flattenValue2(v.Field(i), startIndex+len(result))
+			fieldValues, fieldPositions, size := flattenValue2(v.Field(i), startIndex+len(result), false)
+			typeSize += size
 			result = append(result, fieldValues...)
 			arrayPositions = append(arrayPositions, fieldPositions...)
 		}
@@ -289,16 +296,18 @@ func flattenValue2(v reflect.Value, startIndex int) ([]any, []ArrayPosition) {
 		// If the value is an array or slice, record the start position
 		arrayStart := startIndex
 		for i := 0; i < v.Len(); i++ {
-			elementValues, elementPositions := flattenValue2(v.Index(i), startIndex+len(result))
+			elementValues, elementPositions, size := flattenValue2(v.Index(i), startIndex+len(result), true)
+			typeSize = size
 			result = append(result, elementValues...)
 			arrayPositions = append(arrayPositions, elementPositions...)
 		}
 		// Record the end position of the array
-		arrayPositions = append(arrayPositions, ArrayPosition{Start: arrayStart, End: startIndex + len(result) - 1})
+		arrayPositions = append(arrayPositions, ArrayPosition{arrayStart, startIndex + len(result) - 1, typeSize})
 	default:
 		// For basic types, add the value directly
 		result = append(result, v.Interface())
+		typeSize = 1
 	}
 
-	return result, arrayPositions
+	return result, arrayPositions, typeSize
 }

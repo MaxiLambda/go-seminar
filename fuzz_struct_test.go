@@ -111,3 +111,45 @@ func FuzzPlusPlusEven222(f *testing.F) {
 		}
 	})
 }
+
+func FuzzPlusPlusEven2222(f *testing.F) {
+
+	ff := NewFuzzPlus(f)
+
+	ff.Add2([][]myStruct{{{1, "One"}, {2, "Two"}}})
+	//ff.Add2([]int{3, 4}, []string{}, []string{}, true, []string{"a", "b"}, 1, myStruct{1, "1"})
+
+	ff.Fuzz(func(t *testing.T, arrayStructs [][]myStruct) {
+		//ff.Fuzz(func(t *testing.T, in []int, s []string, ss []string, b bool, strs []string, i int, myStruct2 myStruct) {
+
+		if arrayStructs[0][0].First == len(arrayStructs[0][1].Second) {
+			t.Errorf("An Error, how sad")
+		}
+	})
+}
+
+func FuzzPlusPlusEven22222(f *testing.F) {
+
+	ff := NewFuzzPlus(f)
+
+	ff.Add2([][]ArrayStruct{{{[]int{1}, "a"}, {[]int{2}, "bac"}}, {{[]int{1}, "a"}, {[]int{2}, "bac"}}})
+	//ff.Add2([]int{3, 4}, []string{}, []string{}, true, []string{"a", "b"}, 1, myStruct{1, "1"})
+
+	ff.Fuzz(func(t *testing.T, arrayStructs [][]ArrayStruct) {
+		//ff.Fuzz(func(t *testing.T, in []int, s []string, ss []string, b bool, strs []string, i int, myStruct2 myStruct) {
+
+		if arrayStructs[0][0].Arr[0] == len(arrayStructs[0][1].Str) {
+			t.Errorf("An Error, how sad")
+		}
+	})
+}
+
+func TestInjectSlice(t *testing.T) {
+	arr := []int{1, 2, 3}
+	res := injectSlice(arr, 1, []int{4, 5}, 2)
+	fmt.Println(res)
+	if res[0] != 1 && res[1] != 4 {
+		fmt.Println(res)
+		t.Errorf("An Error, how sad")
+	}
+}
