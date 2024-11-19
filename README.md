@@ -24,6 +24,17 @@ The following basic types are natively supported by the go fuzzer:
 * uint32
 * uint64
 
+## The need to fuzz over other types
+
+In the section above, all valid types of fuzz-input for the native-fuzz-tests are listed.
+But in some cases the need arises to fuzz oder other data-structures like structs, arrays and maps.
+[Even the original design-draft for fuzzing in go respects this.](https://go.googlesource.com/proposal/+/master/design/draft-fuzzing.md#implementation)
+Many other fuzzing solutions for go offer features like these as well. [go-fuzz-utils](https://github.com/trailofbits/go-fuzz-utils) is
+a package that brings support for arrays, maps and structs to [https://github.com/dvyukov/go-fuzz](https://github.com/dvyukov/go-fuzz).
+[go-fuzz-headers](https://github.com/AdaLogics/go-fuzz-headers/tree/main) brings these capabilities to the native-go fuzzing.
+
+These solutions all have the `[]byte` input parameter in common and create structured data from it. 
+
 ## Libraries
 
 The library [go-fuzz-headers](https://github.com/AdaLogics/go-fuzz-headers/tree/main) offers methods to fuzz over
