@@ -30,10 +30,10 @@ In the section above, all valid types of fuzz-input for the native-fuzz-tests ar
 But in some cases the need arises to fuzz oder other data-structures like structs, arrays and maps.
 [Even the original design-draft for fuzzing in go respects this.](https://go.googlesource.com/proposal/+/master/design/draft-fuzzing.md#implementation)
 Many other fuzzing solutions for go offer features like these as well. [go-fuzz-utils](https://github.com/trailofbits/go-fuzz-utils) is
-a package that brings support for arrays, maps and structs to [https://github.com/dvyukov/go-fuzz](https://github.com/dvyukov/go-fuzz).
+a package that brings support for arrays, maps and structs to [go-fuzz](https://github.com/dvyukov/go-fuzz) (a popular go fuzzer).
 [go-fuzz-headers](https://github.com/AdaLogics/go-fuzz-headers/tree/main) brings these capabilities to the native-go fuzzing.
 
-These solutions all have the `[]byte` input parameter in common and create structured data from it. 
+These solutions all have the `[]byte` input parameter in common and create structured data like arrays and maps from it. 
 
 ## Libraries
 
@@ -78,8 +78,7 @@ func Fuzz(f *testing.F) {
 
 ```
 
-## *Experiment: can fuzzing over structs, arrays, maps, etc... be implemented in a way, resembling the regular syntax
-and performance of go fuzz tests?*
+## *Experiment: can fuzzing over structs, arrays, maps, etc... be implemented in a way, resembling the regular syntax and performance of go fuzz tests?*
 
 ### Support for structs (exporting all exported Fields)
 
@@ -115,34 +114,34 @@ It enhances the `testing.F.Add` and the `testing.F.Fuzz` so they can handle stru
 
 ```go
 type myStruct struct {
-First  int
-Second string
+    First  int
+    Second string
 }
 
 type parent struct {
-Child1 myStruct
-Child2 myStruct
+    Child1 myStruct
+    Child2 myStruct
 }
 
 func FuzzPlusPlusEven(f *testing.F) {
 
-ff := NewFuzzPlus(f)
+    ff := NewFuzzPlus(f)
 
-var data1 = myStruct{1, "hallo"}
-var data2 = myStruct{2, "tschüss"}
+    var data1 = myStruct{1, "hallo"}
+    var data2 = myStruct{2, "tschüss"}
 
-var root = parent{data1, data2}
+    var root = parent{data1, data2}
 
-ff.Add(root)
+    ff.Add(root)
 
-ff.Fuzz(func (t *testing.T, in parent) {
-//this test is nonsense but it shows how things work
-res := Even(in.Child1.First)
-res2 := Even(in.Child2.First + 1)
-if res == res2 {
-t.Errorf("An Error, how sad")
-}
-})
+    ff.Fuzz(func (t *testing.T, in parent) {
+        //this test is nonsense but it shows how things work
+        res := Even(in.Child1.First)
+        res2 := Even(in.Child2.First + 1)
+        if res == res2 {
+            t.Errorf("An Error, how sad")
+        }
+    })
 }
 ```
 
@@ -201,18 +200,18 @@ thrown. The measurements therefore include setup times.
 // Run  84336: F1(0.875000) and F2(1.285714) are similar
 // Run   5088: F1(-0.555556) and F2(-0.500000) are similar
 func FuzzNative(f *testing.F) {
-var counter int64 = 0
+    var counter int64 = 0
 
-f.Add(float64(0), float64(0))
-f.Add(float64(0), float64(1))
-f.Add(float64(-1), float64(0))
+    f.Add(float64(0), float64(0))
+    f.Add(float64(0), float64(1))
+    f.Add(float64(-1), float64(0))
 
-f.Fuzz(func (t *testing.T, x1 float64, x2 float64) {
-runNumber := atomic.AddInt64(&counter, 1)
-if Similar(Holder{x1, x2}) {
-t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, x1, x2)
-}
-})
+	f.Fuzz(func (t *testing.T, x1 float64, x2 float64) {
+        runNumber := atomic.AddInt64(&counter, 1)
+        if Similar(Holder{x1, x2}) {
+            t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, x1, x2)
+        }
+    })
 }
 
 // Run 262686: F1(0.600000) and F2(-0.900000) are similar
@@ -221,20 +220,20 @@ t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, x1, x2)
 // Run 231402: F1(-0.555556) and F2(0.500000) are similar
 // Run     91: F1(0.580000) and F2(0.857143) are similar
 func FuzzMyStruct(f *testing.F) {
-ff := NewFuzzPlus(f)
+    ff := NewFuzzPlus(f)
 
-var counter int64 = 0
+    var counter int64 = 0
 
-ff.Add(Holder{0, 0})
-ff.Add(Holder{0, 1})
-ff.Add(Holder{-1, 0})
+    ff.Add(Holder{0, 0})
+    ff.Add(Holder{0, 1})
+    ff.Add(Holder{-1, 0})
 
-ff.Fuzz(func (t *testing.T, h Holder) {
-runNumber := atomic.AddInt64(&counter, 1)
-if Similar(h) {
-t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, h.X1, h.X2)
-}
-})
+    ff.Fuzz(func (t *testing.T, h Holder) {
+        runNumber := atomic.AddInt64(&counter, 1)
+        if Similar(h) {
+            t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, h.X1, h.X2)
+        }
+    })
 }
 
 // Run  124021: F1(-0.537132) and F2(0.000000) are similar
@@ -244,23 +243,23 @@ t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, h.X1, h.X2)
 // Run 3533776: F1(-0.537132) and F2(0.000000) are similar
 func FuzzFuzzHeaders(f *testing.F) {
 
-var counter int64 = 0
+    var counter int64 = 0
 
-f.Fuzz(func (t *testing.T, data []byte) {
+	f.Fuzz(func (t *testing.T, data []byte) {
+    
+        fuzzConsumer := fuzz.New    Consumer(data)
+        h := &Holder{}
+	    err := fuzzConsumer.GenerateStruct(h)
+        if err != nil {
+            //return if an error constructing the struct happens
+            return
+        }
+        runNumber := atomic.AddInt64(&counter, 1)
 
-fuzzConsumer := fuzz.NewConsumer(data)
-h := &Holder{}
-err := fuzzConsumer.GenerateStruct(h)
-if err != nil {
-//return if an error constructing the struct happens
-return
-}
-runNumber := atomic.AddInt64(&counter, 1)
-
-if Similar(*h) {
-t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, h.X1, h.X2)
-}
-})
+        if Similar(*h) {
+            t.Errorf("Run %d: F1(%f) and F2(%f) are similar", runNumber, h.X1, h.X2)
+        }
+    })
 }
 ```
 
@@ -291,9 +290,9 @@ would produce the following meta-information:
 
 ```go
 type ArrayPosition struct {
-Start      int
-End        int
-TypeLength int
+    Start      int
+    End        int
+    TypeLength int
 }
 
 = > {ArrayPosition{0, 3, 1}, ArrayPosition{0, 1, 1}, ArrayPosition{2, 3, 1}, ArrayPosition{4, 3, 1}, ArrayPosition{4, 3, 1}, ArrayPosition{5, 6, 1}}
@@ -306,18 +305,18 @@ The current implementation does not work for all possible cases. Cases listed as
 ```go
 func FuzzPlusPlusEven2(f *testing.F) {
 
-ff := NewFuzzPlus(f)
-
-ff.Add2([][]int{{1, 2}, {3, 4}}, []string{}, []string{}, true, []string{"a", "b"}, 1, myStruct{1, "1"})
-ff.Add([][]int{{-1, -1}, {4, 4}}, []string{}, []string{}, false, []string{"banan", "bonono"}, -14, myStruct{12, "Test"})
-
-ff.Fuzz(func (t *testing.T, in [][]int, s []string, ss []string, b bool, strs []string, i int, myStruct2 myStruct) {
-
-if in[0][0] == in[1][1] {
-fmt.Println(in, s, ss, b, strs, i, myStruct2)
-t.Errorf("An Error, how sad")
-}
-})
+    ff := NewFuzzPlus(f)
+    
+    ff.Add2([][]int{{1, 2}, {3, 4}}, []string{}, []string{}, true, []string{"a", "b"}, 1, myStruct{1, "1"})
+    ff.Add([][]int{{-1, -1}, {4, 4}}, []string{}, []string{}, false, []string{"banan", "bonono"}, -14, myStruct{12, "Test"})
+    
+    ff.Fuzz(func (t *testing.T, in [][]int, s []string, ss []string, b bool, strs []string, i int, myStruct2 myStruct) {
+    
+        if in[0][0] == in[1][1] {
+    f       mt.Println(in, s, ss, b, strs, i, myStruct2)
+            t.Errorf("An Error, how sad")
+        }
+    })
 }
 ```
 
@@ -325,24 +324,24 @@ t.Errorf("An Error, how sad")
 
 ```go
 type ArrayStruct struct {
-Arr []int
-Str string
+    Arr []int
+    Str string
 }
 
 func FuzzPlusPlusEven22(f *testing.F) {
 
-ff := NewFuzzPlus(f)
-
-ff.Add2(ArrayStruct{[]int{1, 2, 3}, "Hallo"})
-//ff.Add2([]int{3, 4}, []string{}, []string{}, true, []string{"a", "b"}, 1, myStruct{1, "1"})
-
-ff.Fuzz(func (t *testing.T, arrayStruct ArrayStruct) {
-//ff.Fuzz(func(t *testing.T, in []int, s []string, ss []string, b bool, strs []string, i int, myStruct2 myStruct) {
-
-if arrayStruct.Arr[2] == len(arrayStruct.Str) {
-t.Errorf("An Error, how sad")
-}
-})
+    ff := NewFuzzPlus(f)
+    
+    ff.Add2(ArrayStruct{[]int{1, 2, 3}, "Hallo"})
+    //ff.Add2([]int{3, 4}, []string{}, []string{}, true, []string{"a", "b"}, 1, myStruct{1, "1"})
+    
+    ff.Fuzz(func (t *testing.T, arrayStruct ArrayStruct) {
+        //ff.Fuzz(func(t *testing.T, in []int, s []string, ss []string, b bool, strs []string, i int, myStruct2 myStruct) {
+        
+        if arrayStruct.Arr[2] == len(arrayStruct.Str) {
+            t.Errorf("An Error, how sad")
+        }
+    })
 }
 
 ```
@@ -352,16 +351,16 @@ t.Errorf("An Error, how sad")
 ```go
 func FuzzPlusPlusEven222(f *testing.F) {
 
-ff := NewFuzzPlus(f)
-
-ff.Add2([]myStruct{{1, "One"}, {2, "Two"}})
-
-ff.Fuzz(func (t *testing.T, arrayStructs []myStruct) {
-
-if arrayStructs[0].First == len(arrayStructs[1].Second) {
-t.Errorf("An Error, how sad")
-}
-})
+    ff := NewFuzzPlus(f)
+    
+        ff.Add2([]myStruct{{1, "One"}, {2, "Two"}})
+    
+    ff.Fuzz(func (t *testing.T, arrayStructs []myStruct) {
+    
+        if arrayStructs[0].First == len(arrayStructs[1].Second) {
+            t.Errorf("An Error, how sad")
+        }
+    })
 }
 ```
 
@@ -370,15 +369,19 @@ t.Errorf("An Error, how sad")
 ```go
 func FuzzPlusPlusEven22222(f *testing.F) {
 
-ff := NewFuzzPlus(f)
-
-ff.Add2([][]ArrayStruct{{{[]int{1}, "a"}, {[]int{2}, "bac"}}, {{[]int{1}, "a"}, {[]int{2}, "bac"}}})
-
-ff.Fuzz(func (t *testing.T, arrayStructs [][]ArrayStruct) {
-
-if arrayStructs[0][0].Arr[0] == len(arrayStructs[0][1].Str) {
-t.Errorf("An Error, how sad")
-}
-})
+    ff := NewFuzzPlus(f)
+    
+    ff.Add2([][]ArrayStruct{{{[]int{1}, "a"}, {[]int{2}, "bac"}}, {{[]int{1}, "a"}, {[]int{2}, "bac"}}})
+    
+    ff.Fuzz(func (t *testing.T, arrayStructs [][]ArrayStruct) {
+    
+        if arrayStructs[0][0].Arr[0] == len(arrayStructs[0][1].Str) {
+            t.Errorf("An Error, how sad")
+        }
+    })
 }
 ```
+
+Why does it fail? I don't know, i would have fixed it otherwise.
+This whole idea of storing data is otherwise flawed as well, because structs (at least the ones containing arrays) can 
+be of various sizes. Therefore, it is not possible to assign a uniform size to each element of an array of structs.
