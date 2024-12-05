@@ -78,39 +78,93 @@ import (
 	"testing"
 )
 
-// ein neues Struct mit 2 Feldern
 type Person struct {
 	Name  string
+	LastName string
 	Alter int
 }
+
+type Student struct {
+	Person Person
+	RzData RzData
+	Semester int
+	Courses []Course
+}
+
+type Course struct {
+	CourseId string
+	Try int
+	Completed bool
+}
+
+type RzData struct {
+	MatNr string
+	Mail string
+}
+
 
 //alle Fuzz-Tests beginnen mit dem Prefix-Fuzz und erwarten als einzigen Parameter
 //ein Object vom Typ *testing.F
 func FuzzSomeTest(f *testing.F) {
-
+	
 	//mit f.Add wird der sogenante Test-Corpus befüllt, die Werte im Corpus sind der
 	//Ausgangspunkt für das Erzeugen neuer Werte für den Test
-	f.Add(23, "Maxi")
-
-	// der Testkorpus kann mit mehr als einem Wert befüllt werden
-	f.Add(23, "Jemand")
-
+	f.Add("Max", "Mustermann", 25, "1234567", "mamu1313@h-ka.de", 7, "C1", 1, true, "Other", 2, false)
+	
 	//der eigentliche "Test" wird hier definiert
 	//f.Fuzz erwartet eine Funktion mit der selben Typ-Signatur, wie die Werte im Test-Corpus
-	f.Fuzz(func(t *testing.T, alter int, name string) {
+	f.Fuzz(func(t *testing.T, name string, last string, age int, matnr string, mail string, semester int, course1 string, 
+		try1 int, completed1 bool, course2 string, try2 int, completed2 bool) {
 
 		//erzeuge ein Struct aus den gegebenen Parametern
-		person := Person{name, alter}
+		mustermann := Student{
+			Person{ name, last, age},
+			RzData{matnr,mail},
+			semester,
+			[]Course{{course1, try1, completed1}, {course2, try2, completed2}} }
 
-		//einTest erwartet ein Struct vom Typ Person. 
-		//ist die Person ungültig, wird ein Fehler geworfen
-		einTest(person)
+		//einTest erwartet ein Struct vom Typ Student,
+		//ist dieses ungültig, wird ein Fehler geworfen
+		einTest(mustermann)
+	})
+}
+
+func FuzzPlusSomeTest(f *testing.F) {
+
+	mustermann := Student{
+		Person{ "Max", "Mustermann", 25},
+		RzData{"1234567","mamu1313@h-ka.de"},
+		7,
+		[]Course{{"C1", 1, true}, {"Other", 2, false}} }
+
+	ff := NewFuzzPlus(f)
+
+	ff.Add2(mustermann)
+
+	f.Fuzz(func(t *testing.T, student Student) {
+		einTest(student)
 	})
 }
 ```
 
 Man kann sich leicht vorstellen, dass der Code zum initialisieren eines mehrfach verschatelten Structs nicht komplex
-aber verbos ist. Ähnliches gilt für das Initalisieren größerer Arrays oder Maps.
+aber verbos ist. Ähnliches gilt für das Initalisieren größerer Arrays oder Maps. Durch eine Erweiterung des Fuzzers
+soll der obige Code verschlankt werden. Es wird nicht nur die Menge an geschriebenem Code verringert, sonder auch die
+Übersichtlichkeit erhöht.
+
+Auch die Resistenz gegen Änderungen verbessert steigt. Bei Änderungen am `Student` Struct müssen bei
+`FuzzSomeTest` drei Stellen angepasst werden (`f.Add(...)`, `f.Fuzz(func(t *testing.T,...))` und das Zusammensetzen des 
+Structs). Bei `FuzzPlusSomeTest` muss nur das Zusammensetzen des Structs angepasst werden. Wird ein `Student` Struct bei
+mehreren Tests benötigt, so könnte in der Testdatei auch global ein solches Struct angelegt und in den allen Tests
+verwendet werden. Dann muss bei Änderungen für alle Tests der Datei nur eine zentrale Stelle geändert werden.
+
+Man kann sich leicht vorstellen, dass ein Test die Nutzung mehrerer Structs erfordert. Dann ist der Zugewinn an 
+Übersicht und Änderungsresitenz noch größer.
+
+Eine Erweitung des Fuzzers bietet also die folgenden Vorteile:
+* weniger Code
+* übersichtlicher Code
+* Änderungsresistenz
 
 ## Lösungsvorschlag: Zerlegen und wieder zusammenbauen
 
@@ -127,7 +181,7 @@ das selbe Prinziep verwendet.
 
 Dieser Ansatz hat allerdings auch Nachteile:
 
-* funktioniert nur mit Structs bei denen alle Felder öffentlilch sind
+* funktioniert nur mit Structs bei denen alle Felder öffentlich sind
 * zyklische Structs können nicht getestet werden (andere Fuzzer sollten auch keine zyklischen Structs erzeugen)
 * es werden nur zufällige Arrays und Maps einer Länge erzeugt
 * Reflection ist "langsam"
@@ -232,21 +286,29 @@ gewählt werden, dass `F(x1) - F(x2) < 0.001`.
 
 Nach 20 Testdurchläufen steht fest: <br/>
 Die nativen Tests benötigen im Durchschnitt die wenigsten Versuche um einen Fehler zu finden und sind mit
-durchschnittlich 4.25s am schnellsten. Mit `FuzzPlus` durchgeführte Tests benötigten im Durchschnitt mit 7.05 ca 60%
+durchschnittlich 4.25s am schnellsten. Mit `FuzzPlus` durchgeführte Tests benötigten im Durchschnitt mit 7.05s ca 60%
 länger. Die Tests, die mit der fuzz-headers Bibliothek durchgeführt wurden benötioten durchschnittlich 131.35s und somit
-mehr als 30 mal mehr Zeit. Dabei waren auch wesentlich mehr Versuche notwendig um einen Fehler zu finden. <br/>
-Auch interessant ist die Tatsache, dass sowohl die nativen, als auch die `FuzzPlus` Tests unterschiedliche Fehler
-erzeugende Wertepaare finden konnten, die fuzz-headers-Bibliothek jedoch stets das selbe Wertepaar entdeckt hat.
+mehr als 30 mal mehr Zeit. Dabei waren auch wesentlich mehr Versuche notwendig um einen Fehler zu finden. 
+
+Auch interessant ist die Tatsache, dass sowohl die nativen, als auch die `FuzzPlus` Tests unterschiedliche, Fehler
+erzeugende, Wertepaare finden konnten, die fuzz-headers-Bibliothek jedoch stets das selbe Wertepaar entdeckt hat.
+
+| Fuzzer        | Durchschnitt [s] | Unterstütze Typen                   |
+|---------------|------------------|-------------------------------------|
+| native Fuzzer | 4.25             | primitive Typen, []byte, string     | 
+| FuzzPlus      | 7.05             | alle nativen, Structs (, Arrays)    |
+| fuzz-headers  | 131.35           | alle nativen, Structs, Arrays, Maps |
 
 Die Untschiede in der Ausführungszeit und auch bei der Anzahl der Testdurchläufe entsprechen den Erwartungen.
 Da die nativen Tests keinen zusätzlichen Code ausführen müssen. Die `FuzzPlus` tests sind langsamer, da bei jedem
 Durchlauf Stucts hergestellt werden müssen, was das Ausführen von reflection-lastigem Code bedingt. Die Anzahl der
 benötigten Testdurchläufe ist ähnlich zu den nativen Tests, da der guided Fuzzer nicht viele weitere Wege zu
 berücksichtigen hat. Die fuzz-headers Bibliothek performt am schlchtetsten, da teilweise ungültige Bytefolgen erzeugt
-werden, was einen Abbruch des Versuchs erzwingt, weil das Erzeugen der Zufallswerte Komplexer ist und nicht die native
-Unterstützung dafür genutzt werden kann, weil die Verwendung von Pseudozufall es dem Fuzzer erschwert
-unterschiedliche Ausführungspfade zu unterusuchen und weil der Code zum Erzeugen der Werte Bestandteil des Tests ist,
-was beduetet, dass der Fuzzer auch in diesem Code nach möglichen Ausführungspfaden sucht.
+werden. welche zu einem Abbruch des Versuchs führen. Dazu kommt, dass das  Erzeugen der Zufallswerte nicht gut durch
+den nativen guided Fuzzer gelenkt werden kann, weil die Verwendung von Pseudozufall es dem Fuzzer erschwert
+unterschiedliche Ausführungspfade zu unterusuchen. Sollte die Verwendung von Pseudozufall kein Probelm für den Fuzzer
+darstellen ist der Code zum Erzeugen der Werte trotzdem Bestandteil des Tests was beduetet, dass der Fuzzer auch in 
+diesem Code nach möglichen Ausführungspfaden sucht.
 
 ```go
 func FuzzNative(f *testing.F) {
@@ -446,8 +508,14 @@ Da die Implementierung für Arrays momentan nicht vollständig ist, wird keine U
 
 Es ist möglich den nativen go Fuzzer zu erweitern um das Fuzzen mit neuen Datentypen zu ermöglichen. Eine Limitierung
 ist, dass man die zu unterstützenden Typen bijektiv auf eine feste Anzahl an momentan unterstützen Typen abbilden muss.
+Die Erweiterung des Fuzzers auf Structs ist durchführbar, die dadurch entstehenden Performance-Einbußen sind 
+überschaubar und bei kleineren Tests vernachlässigbar.
+
+Das Fuzzen mit Arrays/Maps ist mit dem bestehenden Fuzzer nur schwer zu vereinabaren. Entweder muss die verwendete Größe
+des Arrays/der Map fest sein, oder die Daten müssen dynamisch generiert werden. Ersters ist unpraktisch und verringert 
+die Nutzbarkeit von Fuzz-Tests stark, zweiters ist nur mit starken Performance-Einbußen möglich.
+
 Eine Erweiterung des in dieser Arbeit entwickelten `FuzzPlus` könnte die Unterstützung von Typen sein, die 
 `TextMarshaler`/`BinaryMarshaler` und `TextUnmarshaler`/`BinaryUnmarshaler` implementieren. Dabei ist alledings fraglich
-, wie gut der go Fuzzer `string`/`[]byte` Daten generiert, welche sich sinnvoll zu einem Strcut unmarshalen lassen.
-Zudem ist zu beachten, dass jede auf Reflection basierende Erweiterung zu einer erheblichen Verschlechterung des
-Durchsatzes führt.
+, wie gut der go Fuzzer `string`/`[]byte` Daten generiert, welche sich sinnvoll zu einem Strcut 'unmarshalen' lassen.
+Zudem ist zu beachten, dass jede auf Reflection basierende Erweiterung zu einer Verschlechterung des Durchsatzes führt.
