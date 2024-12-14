@@ -1,5 +1,7 @@
 # HKA Go-Fuzzing Seminar (WS 24/25)
 
+Github: https://github.com/MaxiLambda/go-seminar
+
 Diese Seminararbeit ist Benstandteil des Go-Fuzzing Seminars (WS 24/25).
 
 Fuzz-Tests sind seit Version 1.19 ein Bestandteil der Programmiersprache go.
